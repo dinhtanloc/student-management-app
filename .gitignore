@@ -31,6 +31,12 @@ migrate_working_dir/
 .pub/
 /build/
 
+
+*.png
+*.jpg
+*.jpeg
+
+
 # Symbolication related
 app.*.symbols
 

@@ -2,6 +2,9 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+from deepface import DeepFace
+from face_verify.models import UserFace
+import json
 
 class User(AbstractUser):
     username = models.CharField(max_length=100)
@@ -30,8 +33,23 @@ class Profile(models.Model):
 def create_user_profile(sender, instance, created, **kwargs):
     if created:
         profile = Profile.objects.create(user=instance)
-        profile.full_name = instance.username  # Lấy username từ User và gán vào full_name của Profile
+        profile.full_name = instance.username 
         profile.save()
+
+
+@receiver(post_save, sender=Profile)
+def save_user_face_embedding(sender, instance, **kwargs):
+    if instance.image:
+        try:
+            embedding = DeepFace.represent(img_path=instance.image.path, model_name="Facenet")[0]["embedding"]
+            # Tạo hoặc cập nhật bản ghi UserFace
+            UserFace.objects.update_or_create(
+                user=instance.user,
+                profile=instance,
+                defaults={"embedding": json.dumps(embedding)},
+            )
+        except Exception as e:
+            print(f"Lỗi khi trích xuất embedding: {e}")
 
 @receiver(post_save, sender=User)
 def save_user_profile(sender, instance, **kwargs):

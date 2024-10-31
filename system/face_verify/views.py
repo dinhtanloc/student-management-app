@@ -1,40 +1,55 @@
-from .models import UserFace
-from accounts.models import User, Profile
-# from .forms import UserFaceForm
-from rest_framework.decorators import api_view
+from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status
+from rest_framework.permissions import AllowAny
+from rest_framework_simplejwt.tokens import RefreshToken
+from django.http import JsonResponse
 import json
-from django.conf import settings
-from firebase_admin import auth
+from scipy.spatial.distance import cosine
 from deepface import DeepFace
+from .models import UserFace
 
-@api_view(['POST'])
-def upload_face(request):
-    id_token = request.data.get('idToken')
-    if not id_token:
-        return Response({"error": "ID token not provided"}, status=status.HTTP_400_BAD_REQUEST)
+class FaceLoginView(APIView):
+    permission_classes = [AllowAny]
 
-    try:
-        user_info = auth.get_account_info(id_token)
-        uid = user_info["users"][0]["localId"]
-        django_user = User.objects.get(username=uid)  # Lấy User từ ID token
+    def post(self, request):
+        image_path = request.data.get('image_path')  # Nhận đường dẫn ảnh từ yêu cầu
+        user_id = request.data.get('user_id')  # Nhận ID người dùng từ yêu cầu
 
-        # Tìm Profile tương ứng
-        user_profile = django_user.profile
+        try:
+            user_embedding = DeepFace.represent(img_path=image_path, model_name="Facenet")[0]["embedding"]
 
-        # Tạo UserFace mới
-        face_record = UserFace.objects.create(user=django_user, profile=user_profile)
+            user_faces = UserFace.objects.all()
+            min_distance = float('inf')
+            matched_user = None
 
-        # Xử lý ảnh và tạo vector đặc trưng
-        face_image_path = user_profile.image.path  # Lấy đường dẫn ảnh từ Profile
-        face_embedding = DeepFace.represent(face_image_path, model_name='Facenet')[0]['embedding']
-        face_record.embedding = json.dumps(face_embedding)
-        face_record.save()
+            for face in user_faces:
+                stored_embedding = json.loads(face.embedding)
+                distance = cosine(user_embedding, stored_embedding)
 
-        return Response({"message": "Face uploaded successfully"}, status=status.HTTP_201_CREATED)
+                if distance < min_distance:
+                    min_distance = distance
+                    matched_user = face.user
 
-    except Exception as e:
-        return Response({"error": str(e)}, status=status.HTTP_401_UNAUTHORIZED)
-
-    return Response({"error": "Invalid request"}, status=status.HTTP_400_BAD_REQUEST)
+            THRESHOLD = 0.5  
+            if min_distance < THRESHOLD and matched_user and matched_user.id == user_id:
+                refresh = RefreshToken.for_user(matched_user)  # Tạo JWT cho người dùng
+                return Response({
+                    "status": "success",
+                    "refresh": str(refresh),
+                    "access": str(refresh.access_token),
+                    "user": {
+                        "email": matched_user.email,
+                        "username": matched_user.username,
+                        "full_name": matched_user.profile.full_name,
+                        "bio": matched_user.profile.bio,
+                        "phone": matched_user.profile.phone,
+                        "address": matched_user.profile.address,
+                        "job": matched_user.profile.job,
+                        "image": str(matched_user.profile.image),
+                        "verified": matched_user.profile.verified,
+                    }
+                })
+            else:
+                return Response({"status": "failed", "message": "Face not recognized"}, status=401)
+        except Exception as e:
+            return Response({"status": "failed", "message": f"Error during face recognition: {e}"}, status=500)

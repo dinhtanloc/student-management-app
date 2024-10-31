@@ -12,7 +12,8 @@ class FaceLogin extends StatefulWidget {
 
 class _FaceLoginState extends State<FaceLogin> {
   CameraController? _controller;
-  bool _isCameraInitialized = false; // Trạng thái khởi tạo camera
+  bool _isCameraInitialized = false;
+  Timer? _autoLoginTimer;
 
   @override
   void initState() {
@@ -35,9 +36,14 @@ class _FaceLoginState extends State<FaceLogin> {
 
       await _controller!.initialize();
       setState(() {
-        _isCameraInitialized = true; // Cập nhật trạng thái camera đã khởi tạo
+        _isCameraInitialized = true;
       });
       print("Camera initialized successfully.");
+
+      // Đặt bộ đếm thời gian tự động đăng nhập
+      _autoLoginTimer = Timer(Duration(seconds: 10), () {
+        _login();
+      });
     } catch (e) {
       print("Error initializing camera: $e");
     }
@@ -45,12 +51,15 @@ class _FaceLoginState extends State<FaceLogin> {
 
   @override
   void dispose() {
+    _autoLoginTimer?.cancel();
     _controller?.dispose();
     super.dispose();
   }
 
   Future<void> _login() async {
     try {
+      _autoLoginTimer?.cancel();
+
       final image = await _controller!.takePicture();
       final imageBytes = await image.readAsBytes();
       final base64Image = base64Encode(imageBytes);
@@ -79,6 +88,10 @@ class _FaceLoginState extends State<FaceLogin> {
     } catch (e) {
       print("Error: $e");
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Đã xảy ra lỗi!")));
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => Home()),
+      );
     }
   }
 
@@ -88,17 +101,9 @@ class _FaceLoginState extends State<FaceLogin> {
       appBar: AppBar(
         title: Text('Face Login'),
       ),
-      body: _isCameraInitialized // Sử dụng trạng thái khởi tạo camera
-          ? Column(
-        children: [
-          Expanded(child: CameraPreview(_controller!)),
-          ElevatedButton(
-            onPressed: _login,
-            child: Text('Chụp và Đăng Nhập'),
-          ),
-        ],
-      )
-          : Center(child: CircularProgressIndicator()), // Hiển thị loading khi camera chưa khởi tạo
+      body: _isCameraInitialized
+          ? CameraPreview(_controller!)
+          : Center(child: CircularProgressIndicator()),
     );
   }
 }

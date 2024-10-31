@@ -35,6 +35,8 @@ migrate_working_dir/
 *.png
 *.jpg
 *.jpeg
+.env
+firebase.json
 
 
 # Symbolication related

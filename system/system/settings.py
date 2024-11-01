@@ -140,9 +140,14 @@ AUTH_PASSWORD_VALIDATORS = [
 
 AUTH_USER_MODEL = 'accounts.User'
 
+AUTHENTICATION_BACKENDS = (
+    'accounts.email_backend.EmailBackend',  # Thay thế bằng đường dẫn thực tế đến backend của bạn
+    'django.contrib.auth.backends.ModelBackend',  # Giữ backend mặc định
+)
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'accounts.authentication.FirebaseAuthentication',
     ),
     # 'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     # 'PAGE_SIZE': 10 

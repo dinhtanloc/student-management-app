@@ -7,7 +7,7 @@ from sentence_transformers import SentenceTransformer
 
 load_dotenv(find_dotenv())
 
-with open(here("config/project_config.yml")) as cfg:
+with open(here("system/config/project_config.yml")) as cfg:
     app_config = yaml.load(cfg, Loader=yaml.FullLoader)
 
 
